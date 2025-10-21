@@ -1,6 +1,8 @@
 // lib/main_screens/customer_page.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zine_fitness/minor_screens/search_page.dart';
 import 'package:zine_fitness/widgets/user_list.dart';
 import '../minor_screens/filter_page.dart';
@@ -18,30 +20,93 @@ class CustomerPage extends StatefulWidget {
 
 class _CustomerPageState extends State<CustomerPage> {
   int selectedCategory = 0; // 0 = All, 1 = Paid, 2 = Unpaid
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    // Start the user stream once when this page is created (if not started elsewhere)
+    _checkExpiredPayments();
     final up = context.read<UserProvider>();
     up.startListening();
   }
 
+  Future<void> _checkExpiredPayments() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      final todayKey = '${now.year}-${now.month}-${now.day}';
+
+      // Check if we already ran today
+      final lastRun = prefs.getString('lastPaymentCheckDate');
+      if (lastRun == todayKey) {
+        // Already checked today, skip
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      final firestore = FirebaseFirestore.instance;
+      final usersSnapshot = await firestore.collection('User').get();
+
+      for (var userDoc in usersSnapshot.docs) {
+        final data = userDoc.data();
+        final payments = data['payments'] ?? [];
+        if (payments.isEmpty) continue;
+
+        final lastPayment = payments.last;
+        final lastPaymentTimestamp = lastPayment['date'];
+        if (lastPaymentTimestamp == null) continue;
+
+        final lastPaymentDate = (lastPaymentTimestamp as Timestamp).toDate();
+        final difference = now.difference(lastPaymentDate).inDays;
+
+        if (difference >= 30 && (data['status'] == true)) {
+          await userDoc.reference.update({'status': false});
+        }
+      }
+
+      // Save today as last run
+      await prefs.setString('lastPaymentCheckDate', todayKey);
+
+    } catch (e) {
+      _error = "Error updating payment status: $e";
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   void openFilter() async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => const FilterPage()));
-    // FilterPage writes back to provider, and provider notifies -> rebuild
+    await Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const FilterPage()));
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        body: Center(
+            child: Text(_error!, style: const TextStyle(color: Colors.red))),
+      );
+    }
+
     final userProv = context.watch<UserProvider>();
     final filterProv = context.watch<FilterProvider>();
 
-    // compute filtered results for counts (same logic as in UserList)
     final filtered = userProv.users.where((u) {
-      final genderOk = filterProv.gender == null || (u.gender?.toLowerCase() == filterProv.gender?.toLowerCase());
-      final categoryOk = filterProv.category == null || (u.category?.toLowerCase() == filterProv.category?.toLowerCase());
-      final ageOk = filterProv.ageGroup == null || _ageMatches(u.age, filterProv.ageGroup);
+      final genderOk = filterProv.gender == null ||
+          (u.gender?.toLowerCase() == filterProv.gender?.toLowerCase());
+      final categoryOk = filterProv.category == null ||
+          (u.category?.toLowerCase() == filterProv.category?.toLowerCase());
+      final ageOk = filterProv.ageGroup == null ||
+          _ageMatches(u.age, filterProv.ageGroup);
       return genderOk && categoryOk && ageOk;
     }).toList();
 
@@ -51,13 +116,13 @@ class _CustomerPageState extends State<CustomerPage> {
 
     final screenHeight = MediaQuery.of(context).size.height;
 
-    // determine filterStatus for UserList (we still pass selectedCategory so UserList can filter by payment tab)
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        title: Text('Zine Fitness', style: AppTextStyles.appBarTitle.copyWith(fontSize: 28)),
+        title: Text('Zine Fitness',
+            style: AppTextStyles.appBarTitle.copyWith(fontSize: 28)),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -74,18 +139,32 @@ class _CustomerPageState extends State<CustomerPage> {
                         flex: 8,
                         child: GestureDetector(
                           onTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (context) => const SearchPage()));
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => const SearchPage()));
                           },
                           child: Container(
                             height: 50,
                             decoration: BoxDecoration(
                               color: AppColors.fieldFill,
                               borderRadius: BorderRadius.circular(12),
-                              boxShadow: [ BoxShadow(color: AppColors.shadow, blurRadius: 6, offset: const Offset(0,3)) ],
+                              boxShadow: [
+                                BoxShadow(
+                                    color: AppColors.shadow,
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 3))
+                              ],
                             ),
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             alignment: Alignment.centerLeft,
-                            child: Row(children: [ Icon(Icons.search, color: AppColors.iconGrey), const SizedBox(width: 8), Text('ሰው ፈልግ', style: TextStyle(color: AppColors.iconGrey, fontSize: 16)) ]),
+                            child: Row(children: [
+                              Icon(Icons.search, color: AppColors.iconGrey),
+                              const SizedBox(width: 8),
+                              Text('ሰው ፈልግ',
+                                  style: TextStyle(
+                                      color: AppColors.iconGrey, fontSize: 16))
+                            ]),
                           ),
                         ),
                       ),
@@ -96,7 +175,9 @@ class _CustomerPageState extends State<CustomerPage> {
                           onTap: openFilter,
                           child: Container(
                             height: 50,
-                            decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
+                            decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(12)),
                             child: const Icon(Icons.filter_list, color: Colors.white),
                           ),
                         ),
@@ -122,8 +203,6 @@ class _CustomerPageState extends State<CustomerPage> {
               child: Column(
                 children: [
                   Expanded(
-                    // Pass selectedCategory so the UserList can filter by paid/unpaid tab,
-                    // but UserList itself will also apply advanced filters from FilterProvider
                     child: UserListWrapper(selectedTab: selectedCategory),
                   ),
                 ],
@@ -152,8 +231,18 @@ class _CustomerPageState extends State<CustomerPage> {
         child: RichText(
           text: TextSpan(
             children: [
-              TextSpan(text: '$label ', style: TextStyle(color: isSelected ? Colors.white : AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 16)),
-              TextSpan(text: '($count)', style: TextStyle(color: isSelected ? Colors.white70 : Colors.black54, fontSize: 14)),
+              TextSpan(
+                  text: '$label ',
+                  style: TextStyle(
+                      color:
+                      isSelected ? Colors.white : AppColors.textSecondary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16)),
+              TextSpan(
+                  text: '($count)',
+                  style: TextStyle(
+                      color: isSelected ? Colors.white70 : Colors.black54,
+                      fontSize: 14)),
             ],
           ),
         ),
@@ -178,8 +267,7 @@ class _CustomerPageState extends State<CustomerPage> {
   }
 }
 
-/// A small wrapper to adapt the previous UserList to accept the selectedTab payment filter.
-/// We reuse `UserList` above (you could merge logic into a single widget).
+/// Wrapper to filter users with selected payment tab and provider filters
 class UserListWrapper extends StatelessWidget {
   final int selectedTab;
   const UserListWrapper({required this.selectedTab, super.key});
@@ -189,11 +277,13 @@ class UserListWrapper extends StatelessWidget {
     final userProv = context.watch<UserProvider>();
     final filterProv = context.watch<FilterProvider>();
 
-    // start from full provider list and apply both advanced filters and payment tab
     var filtered = userProv.users.where((u) {
-      final genderOk = filterProv.gender == null || (u.gender?.toLowerCase() == filterProv.gender?.toLowerCase());
-      final categoryOk = filterProv.category == null || (u.category?.toLowerCase() == filterProv.category?.toLowerCase());
-      final ageOk = filterProv.ageGroup == null || _ageMatches(u.age, filterProv.ageGroup);
+      final genderOk = filterProv.gender == null ||
+          (u.gender?.toLowerCase() == filterProv.gender?.toLowerCase());
+      final categoryOk = filterProv.category == null ||
+          (u.category?.toLowerCase() == filterProv.category?.toLowerCase());
+      final ageOk =
+          filterProv.ageGroup == null || _ageMatches(u.age, filterProv.ageGroup);
       return genderOk && categoryOk && ageOk;
     }).toList();
 
@@ -204,7 +294,9 @@ class UserListWrapper extends StatelessWidget {
     }
 
     if (filtered.isEmpty) {
-      return const Center(child: Text("No users found.", style: TextStyle(color: AppColors.textSecondary)));
+      return const Center(
+          child: Text("No users found.",
+              style: TextStyle(color: AppColors.textSecondary)));
     }
 
     return ListView.builder(

@@ -5,6 +5,8 @@ import 'package:zine_fitness/main_screens/profile.dart';
 import 'package:zine_fitness/main_screens/report_page.dart';
 import 'package:zine_fitness/utilities/colors.dart';
 
+import 'check_payemnt.dart';
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
