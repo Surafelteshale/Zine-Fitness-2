@@ -67,6 +67,7 @@ class UserList extends StatelessWidget {
         final paymentStatus = u.status ? 'ተከፍሏል' : 'አልተከፈለም';
 
         return UserModel(
+          userId: u.id,
           name: u.name ?? 'Unknown',
           category: u.category ?? '---',
           age: u.age ?? 0,

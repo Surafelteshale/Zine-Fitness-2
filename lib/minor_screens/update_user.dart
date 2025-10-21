@@ -1,8 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../utilities/colors.dart';
 
 class UpdateUser extends StatefulWidget {
-  const UpdateUser({super.key});
+  final String userId; // User document ID
+  const UpdateUser({super.key, required this.userId});
 
   @override
   State<UpdateUser> createState() => _UpdateUserState();
@@ -11,12 +13,120 @@ class UpdateUser extends StatefulWidget {
 class _UpdateUserState extends State<UpdateUser> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
+  String? _selectedCategory;
+  bool _isLoading = false;
+  bool _isDataLoading = true;
 
   final List<String> _categories = ['ብረት', 'ኤሮቢክስ', 'ብረት እና ኤሮቢክስ'];
-  String? _selectedCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('User')
+          .doc(widget.userId)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data()!;
+        _nameController.text = data['name'] ?? '';
+        _ageController.text = data['age']?.toString() ?? '';
+        _selectedCategory = data['category'];
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load user data: $e')),
+      );
+    } finally {
+      setState(() {
+        _isDataLoading = false;
+      });
+    }
+  }
+
+  Future<void> _saveUserData() async {
+    if (_nameController.text.isEmpty ||
+        _ageController.text.isEmpty ||
+        _selectedCategory == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await FirebaseFirestore.instance.collection('User').doc(widget.userId).update({
+        'name': _nameController.text.trim(),
+        'age': int.tryParse(_ageController.text.trim()) ?? 0,
+        'category': _selectedCategory,
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ተጠቃሚ በተሳካ ሁኔታ ተስተካክሏል!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('ተጠቃሚን ማስተካከል አልተሳካም: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showDeleteDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Delete User"),
+        content: const Text("እርግጠኛ ነዎት ይህን ተጠቃሚ መሰረዝ ይፈልጋሉ?"),
+        actions: [
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              setState(() => _isLoading = true);
+              try {
+                await FirebaseFirestore.instance.collection('User').doc(widget.userId).delete();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('ተጠቃሚ በተሳካ ሁኔታ ተሰርዟል።')),
+                );
+                Navigator.pop(context); // go back after deletion
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('ተጠቃሚን መሰረዝ አልተሳካም: $e')),
+                );
+              } finally {
+                setState(() => _isLoading = false);
+              }
+            },
+            child: const Text("Yes"),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("No"),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isDataLoading) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -33,7 +143,7 @@ class _UpdateUserState extends State<UpdateUser> {
         elevation: 1,
       ),
       body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(), // dismiss keyboard
+        onTap: () => FocusScope.of(context).unfocus(),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -49,8 +159,7 @@ class _UpdateUserState extends State<UpdateUser> {
                   hintStyle: AppTextStyles.hintTextStyle,
                   filled: true,
                   fillColor: AppColors.fieldFill,
-                  contentPadding: const EdgeInsets.symmetric(
-                      vertical: 18, horizontal: 16),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -70,8 +179,7 @@ class _UpdateUserState extends State<UpdateUser> {
                   hintStyle: AppTextStyles.hintTextStyle,
                   filled: true,
                   fillColor: AppColors.fieldFill,
-                  contentPadding: const EdgeInsets.symmetric(
-                      vertical: 18, horizontal: 16),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -88,8 +196,7 @@ class _UpdateUserState extends State<UpdateUser> {
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: AppColors.fieldFill,
-                  contentPadding: const EdgeInsets.symmetric(
-                      vertical: 18, horizontal: 16),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -107,70 +214,46 @@ class _UpdateUserState extends State<UpdateUser> {
                   });
                 },
               ),
-              const SizedBox(height: 140),
+              const SizedBox(height: 40),
 
               /// Save button
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
+                  onPressed: _isLoading ? null : _saveUserData,
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text("Save", style: AppTextStyles.buttonText),
                 ),
-                onPressed: () {
-                  // TODO: save logic
-                },
-                child: const Text("Save", style: AppTextStyles.buttonText),
               ),
               const SizedBox(height: 20),
 
               /// Delete button
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                ),
-                onPressed: () {
-                  _showDeleteDialog(context);
-                },
-                child: const Text(
-                  "Delete ተጠቃሚውን",
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  onPressed: () => _showDeleteDialog(context),
+                  child: const Text(
+                    "Delete ተጠቃሚውን",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
                 ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _showDeleteDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Are you sure?"),
-        content: const Text("Are you sure you want to delete user?"),
-        actions: [
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () {
-              Navigator.pop(ctx); // just close dialog for now
-            },
-            child: const Text("Yes"),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-            onPressed: () {
-              Navigator.pop(ctx); // close dialog
-            },
-            child: const Text("No"),
-          ),
-        ],
       ),
     );
   }

@@ -1,12 +1,109 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:zine_fitness/utilities/colors.dart';
+import '../utilities/colors.dart';
 
-class Payment extends StatelessWidget {
-  const Payment({super.key});
+class Payment extends StatefulWidget {
+  final String userId;
+  const Payment({super.key, required this.userId});
+
+  @override
+  State<Payment> createState() => _PaymentState();
+}
+
+class _PaymentState extends State<Payment> {
+  final _amountController = TextEditingController();
+  final _dateController = TextEditingController();
+  bool _isLoading = false;
+  Map<String, dynamic>? _userData;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('User')
+          .doc(widget.userId)
+          .get();
+
+      if (doc.exists) {
+        setState(() {
+          _userData = doc.data();
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching user data: $e");
+    }
+  }
+
+  Future<void> _addPayment() async {
+    if (_amountController.text.isEmpty || _dateController.text.isEmpty) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final docRef =
+      FirebaseFirestore.instance.collection('User').doc(widget.userId);
+
+      final docSnap = await docRef.get();
+      if (!docSnap.exists) throw Exception("User not found");
+
+      final List<dynamic> payments = docSnap.data()?['payments'] ?? [];
+
+      final newPayment = {
+        'amount': int.tryParse(_amountController.text) ?? 0,
+        'displayDay': _dateController.text,
+        'date': Timestamp.now(),
+      };
+
+      payments.add(newPayment);
+
+      // Update user with new payment array and update status to true
+      await docRef.update({
+        'payments': payments,
+        'status': true,
+        'lastPaid': Timestamp.now(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ክፍያው ተሳክቷል')),
+      );
+
+      _amountController.clear();
+      _dateController.clear();
+      await _fetchUserData(); // refresh the data
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('ስህተት ተከስቷል: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+
+    if (_userData == null) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final name = _userData?['name'] ?? 'N/A';
+    final category = _userData?['category'] ?? 'N/A';
+    final status = _userData?['status'] ?? false;
+    final payments = List<Map<String, dynamic>>.from(_userData?['payments'] ?? []);
+
+    String lastPaymentDate = 'N/A';
+    if (payments.isNotEmpty) {
+      lastPaymentDate = payments.last['displayDay'] ?? 'N/A';
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -17,10 +114,7 @@ class Payment extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'ክፍያ',
-          style: AppTextStyles.appBarTitle,
-        ),
+        title: const Text('ክፍያ', style: AppTextStyles.appBarTitle),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -46,36 +140,37 @@ class Payment extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildUserInfoRow("ስም፡", "ሱራፌል ተሻለ"),
+                  _buildUserInfoRow("ስም፡", name),
                   const SizedBox(height: 12),
-                  const Row(
+                  Row(
                     children: [
-                      Text("ክፍያ:", style: AppTextStyles.resultText),
-                      SizedBox(width: 8),
+                      const Text("ክፍያ:", style: AppTextStyles.resultText),
+                      const SizedBox(width: 8),
                       Text(
-                        "ያልከፈለ",
+                        status ? "ተከፍሏል" : "አልተከፈለም",
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Colors.red,
+                          color: status ? Colors.green : Colors.red,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _buildUserInfoRow("የመጨረሻው የተከፈለበት ቀን:", "12/08/2017"),
+                  _buildUserInfoRow("የመጨረሻው የተከፈለበት ቀን:", lastPaymentDate),
                   const SizedBox(height: 12),
-                  _buildUserInfoRow("የተጠቃሚ ምድብ:", "ብረት"),
+                  _buildUserInfoRow("የተጠቃሚ ምድብ:", category),
                 ],
               ),
             ),
 
             const SizedBox(height: 24),
 
-            // Date Field 1
+            // Date Field
             _buildTextField(
+              controller: _dateController,
               label: "ቀን",
-              hint: "ቀን ያስገቡ",
+              hint: "ቀን ያስገቡ (e.g. 02-03-2018)",
               icon: Icons.calendar_today,
             ),
 
@@ -83,9 +178,11 @@ class Payment extends StatelessWidget {
 
             // Payment Amount
             _buildTextField(
+              controller: _amountController,
               label: "የክፍያ መጠን",
               hint: "መጠን ያስገቡ",
               icon: Icons.monetization_on,
+              keyboardType: TextInputType.number,
             ),
 
             const SizedBox(height: 120),
@@ -102,13 +199,17 @@ class Payment extends StatelessWidget {
                   ),
                   elevation: 0,
                 ),
-                onPressed: () {
-                  // handle payment logic
-                },
-                child: const Text(
-                  "ክፈል",
-                  style: AppTextStyles.buttonText,
-                ),
+                onPressed: _isLoading ? null : _addPayment,
+                child: _isLoading
+                    ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+                    : const Text("ክፈል", style: AppTextStyles.buttonText),
               ),
             ),
           ],
@@ -131,6 +232,8 @@ class Payment extends StatelessWidget {
     required String label,
     required String hint,
     required IconData icon,
+    TextEditingController? controller,
+    TextInputType? keyboardType,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,6 +241,8 @@ class Payment extends StatelessWidget {
         Text(label, style: AppTextStyles.fieldLabel),
         const SizedBox(height: 8),
         TextField(
+          controller: controller,
+          keyboardType: keyboardType,
           decoration: InputDecoration(
             filled: true,
             fillColor: AppColors.fieldFill,

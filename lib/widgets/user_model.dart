@@ -5,6 +5,7 @@ import 'package:zine_fitness/minor_screens/user_info.dart';
 import '../utilities/colors.dart';
 
 class UserModel extends StatelessWidget {
+  final String userId;
   final String name;
   final String category;
   final int age;
@@ -13,6 +14,7 @@ class UserModel extends StatelessWidget {
 
   const UserModel({
     super.key,
+    required this.userId,
     required this.name,
     required this.category,
     required this.age,
@@ -134,7 +136,7 @@ class UserModel extends StatelessWidget {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const UserInfo(),
+                                      builder: (context) => UserInfo(userId: userId),
                                     ),
                                   );
                                 },
@@ -158,7 +160,7 @@ class UserModel extends StatelessWidget {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const UpdateUser(),
+                                      builder: (context) => UpdateUser(userId: userId),
                                     ),
                                   );
                                 },
@@ -185,7 +187,7 @@ class UserModel extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const Payment(),
+                                  builder: (context) => Payment(userId: userId),
                                 ),
                               );
                             },

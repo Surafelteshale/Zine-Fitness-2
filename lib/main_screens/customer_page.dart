@@ -212,6 +212,7 @@ class UserListWrapper extends StatelessWidget {
       itemBuilder: (context, index) {
         final u = filtered[index];
         return UserModel(
+          userId: u.id,
           name: u.name ?? 'Unknown',
           category: u.category ?? '---',
           age: u.age ?? 0,

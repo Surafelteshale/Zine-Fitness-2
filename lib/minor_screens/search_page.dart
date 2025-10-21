@@ -161,6 +161,7 @@ class _SearchPageState extends State<SearchPage> {
                   itemBuilder: (context, index) {
                     final userData = filteredUsers[index].data();
                     final String name = userData['name'] ?? 'Unknown';
+                    final String id = userData['id'] ?? 'Unknown';
                     final String category =
                         userData['category'] ?? '---';
                     final int age = userData['age'] != null
@@ -175,6 +176,7 @@ class _SearchPageState extends State<SearchPage> {
 
 
                     return UserModel(
+                      userId: id,
                       name: name,
                       category: category,
                       age: age,
