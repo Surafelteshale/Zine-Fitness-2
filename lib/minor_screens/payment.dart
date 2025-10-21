@@ -45,13 +45,14 @@ class _PaymentState extends State<Payment> {
     setState(() => _isLoading = true);
 
     try {
-      final docRef =
-      FirebaseFirestore.instance.collection('User').doc(widget.userId);
-
+      final docRef = FirebaseFirestore.instance.collection('User').doc(widget.userId);
       final docSnap = await docRef.get();
+
       if (!docSnap.exists) throw Exception("User not found");
 
-      final List<dynamic> payments = docSnap.data()?['payments'] ?? [];
+      final data = docSnap.data()!;
+      final List<dynamic> payments = data['payments'] ?? [];
+      final bool currentStatus = data['status'] ?? false;
 
       final newPayment = {
         'amount': int.tryParse(_amountController.text) ?? 0,
@@ -61,12 +62,19 @@ class _PaymentState extends State<Payment> {
 
       payments.add(newPayment);
 
-      // Update user with new payment array and update status to true
-      await docRef.update({
+      // Create an update map
+      final Map<String, dynamic> updateData = {
         'payments': payments,
-        'status': true,
         'lastPaid': Timestamp.now(),
-      });
+      };
+
+      // Only update status if it's false
+      if (!currentStatus) {
+        updateData['status'] = true;
+      }
+
+      // Update the Firestore document
+      await docRef.update(updateData);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('ክፍያው ተሳክቷል')),
@@ -74,7 +82,8 @@ class _PaymentState extends State<Payment> {
 
       _amountController.clear();
       _dateController.clear();
-      await _fetchUserData(); // refresh the data
+      await _fetchUserData(); // refresh data
+
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('ስህተት ተከስቷል: $e')),
@@ -83,6 +92,7 @@ class _PaymentState extends State<Payment> {
       setState(() => _isLoading = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -205,7 +215,7 @@ class _PaymentState extends State<Payment> {
                   height: 24,
                   width: 24,
                   child: CircularProgressIndicator(
-                    color: Colors.white,
+                    color: AppColors.primary,
                     strokeWidth: 2,
                   ),
                 )
