@@ -12,7 +12,7 @@ class UserModel extends StatelessWidget {
   final String paymentStatus;
   final String gender;
 
-  const UserModel({
+  const  UserModel({
     super.key,
     required this.userId,
     required this.name,

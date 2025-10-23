@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../utilities/colors.dart';
 
 class UpdateUser extends StatefulWidget {
-  final String userId; // User document ID
+  final String userId;
   const UpdateUser({super.key, required this.userId});
 
   @override
@@ -13,6 +13,13 @@ class UpdateUser extends StatefulWidget {
 class _UpdateUserState extends State<UpdateUser> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
+  final TextEditingController _weightController = TextEditingController();
+  final TextEditingController _heightController = TextEditingController();
+  final TextEditingController _bloodTypeController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _educationLevelController = TextEditingController();
+  final TextEditingController _healthStatusController = TextEditingController();
+
   String? _selectedCategory;
   bool _isLoading = false;
   bool _isDataLoading = true;
@@ -37,6 +44,12 @@ class _UpdateUserState extends State<UpdateUser> {
         _nameController.text = data['name'] ?? '';
         _ageController.text = data['age']?.toString() ?? '';
         _selectedCategory = data['category'];
+        _weightController.text = data['weight']?.toString() ?? '';
+        _heightController.text = data['height']?.toString() ?? '';
+        _bloodTypeController.text = data['bloodType'] ?? '';
+        _addressController.text = data['address'] ?? '';
+        _educationLevelController.text = data['educationLevel'] ?? '';
+        _healthStatusController.text = data['healthStatus'] ?? '';
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -50,11 +63,9 @@ class _UpdateUserState extends State<UpdateUser> {
   }
 
   Future<void> _saveUserData() async {
-    if (_nameController.text.isEmpty ||
-        _ageController.text.isEmpty ||
-        _selectedCategory == null) {
+    if (_nameController.text.isEmpty || _ageController.text.isEmpty || _selectedCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all fields')),
+        const SnackBar(content: Text('Please fill required fields')),
       );
       return;
     }
@@ -66,6 +77,12 @@ class _UpdateUserState extends State<UpdateUser> {
         'name': _nameController.text.trim(),
         'age': int.tryParse(_ageController.text.trim()) ?? 0,
         'category': _selectedCategory,
+        'weight': _weightController.text.trim(),
+        'height': _heightController.text.trim(),
+        'bloodType': _bloodTypeController.text.trim(),
+        'address': _addressController.text.trim(),
+        'educationLevel': _educationLevelController.text.trim(),
+        'healthStatus': _healthStatusController.text.trim(),
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -97,7 +114,7 @@ class _UpdateUserState extends State<UpdateUser> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('ተጠቃሚ በተሳካ ሁኔታ ተሰርዟል።')),
                 );
-                Navigator.pop(context); // go back after deletion
+                Navigator.pop(context);
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('ተጠቃሚን መሰረዝ አልተሳካም: $e')),
@@ -134,10 +151,7 @@ class _UpdateUserState extends State<UpdateUser> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "አስተካክል",
-          style: AppTextStyles.appBarTitle,
-        ),
+        title: const Text("አስተካክል", style: AppTextStyles.appBarTitle),
         centerTitle: true,
         backgroundColor: AppColors.background,
         elevation: 1,
@@ -149,74 +163,17 @@ class _UpdateUserState extends State<UpdateUser> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              /// Name field
-              Text("ስም", style: AppTextStyles.fieldLabel),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  hintText: "ስም አስገባ",
-                  hintStyle: AppTextStyles.hintTextStyle,
-                  filled: true,
-                  fillColor: AppColors.fieldFill,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              /// Age field
-              Text("ዕድሜ", style: AppTextStyles.fieldLabel),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _ageController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  hintText: "ዕድሜ አስገባ",
-                  hintStyle: AppTextStyles.hintTextStyle,
-                  filled: true,
-                  fillColor: AppColors.fieldFill,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              /// Dropdown menu for category
-              Text("ክፍል", style: AppTextStyles.fieldLabel),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AppColors.fieldFill,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                items: _categories.map((category) {
-                  return DropdownMenuItem<String>(
-                    value: category,
-                    child: Text(category),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = value;
-                  });
-                },
-              ),
+              _buildTextField("ስም", _nameController),
+              _buildTextField("ዕድሜ", _ageController, keyboardType: TextInputType.number),
+              _buildDropdownField(),
+              _buildTextField("ክብደት (በኪ.ግ)", _weightController),
+              _buildTextField("ቁመት (በሜትር)", _heightController),
+              _buildTextField("የደም ዓይነት", _bloodTypeController),
+              _buildTextField("አድራሻ", _addressController),
+              _buildTextField("የትምህርት ደረጃ", _educationLevelController),
+              _buildTextField("የጤና ሁኔታ", _healthStatusController),
               const SizedBox(height: 40),
 
-              /// Save button
               SizedBox(
                 height: 50,
                 child: ElevatedButton(
@@ -234,7 +191,6 @@ class _UpdateUserState extends State<UpdateUser> {
               ),
               const SizedBox(height: 20),
 
-              /// Delete button
               SizedBox(
                 height: 50,
                 child: ElevatedButton(
@@ -254,6 +210,73 @@ class _UpdateUserState extends State<UpdateUser> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(String label, TextEditingController controller,
+      {TextInputType keyboardType = TextInputType.text}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: AppTextStyles.fieldLabel),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            decoration: InputDecoration(
+              hintText: "$label አስገባ",
+              hintStyle: AppTextStyles.hintTextStyle,
+              filled: true,
+              fillColor: AppColors.fieldFill,
+              contentPadding:
+              const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("ክፍል", style: AppTextStyles.fieldLabel),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _selectedCategory,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: AppColors.fieldFill,
+              contentPadding:
+              const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+            items: _categories.map((category) {
+              return DropdownMenuItem<String>(
+                value: category,
+                child: Text(category),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedCategory = value;
+              });
+            },
+          ),
+        ],
       ),
     );
   }

@@ -18,8 +18,10 @@ class _EditProfileState extends State<EditProfile> {
   final TextEditingController phoneController = TextEditingController();
   final TextEditingController addressController = TextEditingController();
   final TextEditingController managerCountController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
 
   bool isLoading = true;
+  bool isSaving = false;
 
   @override
   void initState() {
@@ -28,34 +30,39 @@ class _EditProfileState extends State<EditProfile> {
   }
 
   Future<void> loadAdminData() async {
-    final adminId = context.read<IdProvider>().getData; // current admin id
+    final adminId = context.read<IdProvider>().getData;
     if (adminId.isEmpty) return;
 
     try {
-      final doc = await FirebaseFirestore.instance
+      final adminDoc = await FirebaseFirestore.instance
           .collection('Admin')
           .doc(adminId)
           .get();
 
-      if (doc.exists) {
-        final data = doc.data()!;
-        setState(() {
-          nameController.text = data['ስም'] ?? '';
-          phoneController.text = data['ስልክ'] ?? '';
-          addressController.text = data['address'] ?? '';
-          managerCountController.text = (data['managerCount'] ?? '').toString();
-          isLoading = false;
-        });
-      } else {
-        setState(() {
-          isLoading = false;
-        });
+      final passwordDoc = await FirebaseFirestore.instance
+          .collection('Other')
+          .doc('password')
+          .get();
+
+      if (adminDoc.exists) {
+        final data = adminDoc.data()!;
+        nameController.text = data['ስም'] ?? '';
+        phoneController.text = data['ስልክ'] ?? '';
+        addressController.text = data['address'] ?? '';
+        managerCountController.text = (data['managerCount'] ?? '').toString();
+      }
+
+      if (passwordDoc.exists) {
+        final passData = passwordDoc.data()!;
+        passwordController.text = passData['password'] ?? '';
       }
     } catch (e) {
-      print("Error loading admin data: $e");
-      setState(() {
-        isLoading = false;
-      });
+      print("Error loading admin or password data: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading data: $e')),
+      );
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
@@ -67,20 +74,33 @@ class _EditProfileState extends State<EditProfile> {
     final adminId = context.read<IdProvider>().getData;
     if (adminId.isEmpty) return;
 
+    setState(() => isSaving = true);
+
     try {
+      // Update Admin info
       await FirebaseFirestore.instance.collection('Admin').doc(adminId).update({
         'ስም': nameController.text.trim(),
         'ስልክ': phoneController.text.trim(),
+      });
+
+      // Update password field in Other/password document
+      await FirebaseFirestore.instance
+          .collection('Other')
+          .doc('password')
+          .update({
+        'password': passwordController.text.trim(),
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("ስኬታማ ነው")),
       );
     } catch (e) {
-      print("Error updating admin profile: $e");
+      print("Error updating profile: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("ስኬታማ አይደለም")),
       );
+    } finally {
+      setState(() => isSaving = false);
     }
   }
 
@@ -99,7 +119,7 @@ class _EditProfileState extends State<EditProfile> {
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -118,8 +138,12 @@ class _EditProfileState extends State<EditProfile> {
             ProfileRow(label: "ስም", controller: nameController),
             const Divider(height: 25, thickness: 1, color: AppColors.fieldFill),
             ProfileRow(label: "ስልክ", controller: phoneController),
-            Divider(height: 25, thickness: 1, color: AppColors.fieldFill),
+            const Divider(height: 25, thickness: 1, color: AppColors.fieldFill),
+            ProfileRow(label: "Password", controller: passwordController, obscureText: false),
+            const Divider(height: 25, thickness: 1, color: AppColors.fieldFill),
             const SizedBox(height: 140),
+
+            // Save Button with Loading Indicator
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -130,14 +154,26 @@ class _EditProfileState extends State<EditProfile> {
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                onPressed: saveProfile,
-                child: Text(
+                onPressed: isSaving ? null : saveProfile,
+                child: isSaving
+                    ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Colors.white,
+                  ),
+                )
+                    : Text(
                   "Save",
-                  style: AppTextStyles.buttonText.copyWith(color: AppColors.background),
+                  style: AppTextStyles.buttonText.copyWith(
+                      color: AppColors.background),
                 ),
               ),
             ),
             const SizedBox(height: 40),
+
+            // Logout Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -159,7 +195,8 @@ class _EditProfileState extends State<EditProfile> {
                       Navigator.pop(context);
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (context) => const OnBoarding()),
+                        MaterialPageRoute(
+                            builder: (context) => const OnBoarding()),
                       );
                     },
                   );
@@ -177,12 +214,18 @@ class _EditProfileState extends State<EditProfile> {
   }
 }
 
-// Reusable widget for profile row
+// 🔹 Reusable Profile Input Field
 class ProfileRow extends StatelessWidget {
   final String label;
   final TextEditingController controller;
+  final bool obscureText;
 
-  const ProfileRow({super.key, required this.label, required this.controller});
+  const ProfileRow({
+    super.key,
+    required this.label,
+    required this.controller,
+    this.obscureText = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -193,16 +236,18 @@ class ProfileRow extends StatelessWidget {
         const SizedBox(height: 8),
         TextField(
           controller: controller,
+          obscureText: obscureText,
           decoration: InputDecoration(
             filled: true,
             fillColor: AppColors.fieldFill,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
           ),
-          style: TextStyle(color: AppColors.textPrimary),
+          style: const TextStyle(color: AppColors.textPrimary),
         ),
       ],
     );

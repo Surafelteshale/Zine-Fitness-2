@@ -23,12 +23,15 @@ class _CreateUserState extends State<CreateUser> {
   final TextEditingController _bloodTypeController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
-  final TextEditingController _dayController = TextEditingController(); // admin-visible day
+  final TextEditingController _dayController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _healthStatusController = TextEditingController();
+  final TextEditingController _educationLevelController = TextEditingController();
 
   String _gender = 'ወንድ';
   String _category = 'ብረት';
-
   bool processing = false;
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
@@ -42,10 +45,12 @@ class _CreateUserState extends State<CreateUser> {
     _heightController.dispose();
     _weightController.dispose();
     _dayController.dispose();
+    _addressController.dispose();
+    _healthStatusController.dispose();
+    _educationLevelController.dispose();
     super.dispose();
   }
 
-  /// Create user in Firestore
   Future<void> createUser() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -86,8 +91,19 @@ class _CreateUserState extends State<CreateUser> {
             : _nameController.text.trim(),
         'gender': _gender.isEmpty ? null : _gender,
         'age': age,
-        'phone': _phoneController.text.trim(),
+        'phone': _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
         'category': _category,
+        'address': _addressController.text.trim().isEmpty
+            ? null
+            : _addressController.text.trim(),
+        'healthStatus': _healthStatusController.text.trim().isEmpty
+            ? null
+            : _healthStatusController.text.trim(),
+        'educationLevel': _educationLevelController.text.trim().isEmpty
+            ? null
+            : _educationLevelController.text.trim(),
         'bloodType': _bloodTypeController.text.trim().isEmpty
             ? null
             : _bloodTypeController.text.trim(),
@@ -99,10 +115,10 @@ class _CreateUserState extends State<CreateUser> {
         'lastPaid': paymentAmount != null ? FieldValue.serverTimestamp() : null,
       };
 
-      // 1️⃣ Save the user
+      // Save user
       await _firestore.collection('User').doc(id).set(userData);
 
-      // 2️⃣ Update MonthlyStats in the latest document
+      // Update MonthlyStats
       final monthlyStatsQuery = await _firestore
           .collection('MonthlyStats')
           .orderBy('createdAt', descending: true)
@@ -110,7 +126,6 @@ class _CreateUserState extends State<CreateUser> {
           .get();
 
       if (monthlyStatsQuery.docs.isEmpty) {
-        // If no document exists, create a new one
         final newMonthDocId =
             "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}";
         await _firestore.collection('MonthlyStats').doc(newMonthDocId).set({
@@ -121,7 +136,6 @@ class _CreateUserState extends State<CreateUser> {
           'payments': payments,
         });
       } else {
-        // Update the latest document
         final latestDoc = monthlyStatsQuery.docs.first;
         final latestRef = latestDoc.reference;
 
@@ -156,9 +170,6 @@ class _CreateUserState extends State<CreateUser> {
     }
   }
 
-
-
-
   void _clearForm() {
     _nameController.clear();
     _ageController.clear();
@@ -169,6 +180,9 @@ class _CreateUserState extends State<CreateUser> {
     _heightController.clear();
     _weightController.clear();
     _dayController.clear();
+    _addressController.clear();
+    _healthStatusController.clear();
+    _educationLevelController.clear();
 
     setState(() {
       _gender = 'ወንድ';
@@ -176,7 +190,6 @@ class _CreateUserState extends State<CreateUser> {
     });
   }
 
-  // UI helpers
   Widget buildTextField({
     required String label,
     required TextEditingController controller,
@@ -185,7 +198,7 @@ class _CreateUserState extends State<CreateUser> {
     bool readOnly = false,
     TextInputType keyboardType = TextInputType.text,
     VoidCallback? onTap,
-    bool requiredField = true,
+    bool requiredField = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,7 +212,7 @@ class _CreateUserState extends State<CreateUser> {
           onTap: onTap,
           validator: (value) {
             if (!requiredField) return null;
-            if (value == null || value.trim().isEmpty) return 'Required';
+            if (value == null || value.trim().isEmpty) return 'አልተሞላም';
             return null;
           },
           decoration: InputDecoration(
@@ -207,7 +220,8 @@ class _CreateUserState extends State<CreateUser> {
             prefixIcon: Icon(icon, color: AppColors.iconGrey),
             filled: true,
             fillColor: AppColors.fieldFill,
-            contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+            contentPadding:
+            const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -250,7 +264,8 @@ class _CreateUserState extends State<CreateUser> {
               prefixIcon: Icon(icon, color: AppColors.iconGrey),
             ),
             items: items
-                .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                .map((item) =>
+                DropdownMenuItem(value: item, child: Text(item)))
                 .toList(),
             onChanged: onChanged,
           ),
@@ -280,7 +295,7 @@ class _CreateUserState extends State<CreateUser> {
                 controller: _nameController,
                 hintText: 'ሙሉ ስም አስገባ',
                 icon: Icons.person,
-                requiredField: false,
+                requiredField: true,
               ),
               const SizedBox(height: 20),
               buildDropdownField(
@@ -299,6 +314,7 @@ class _CreateUserState extends State<CreateUser> {
                 hintText: 'እድሜ አስገባ',
                 icon: Icons.calendar_month,
                 keyboardType: TextInputType.number,
+                requiredField: false,
               ),
               const SizedBox(height: 20),
               buildTextField(
@@ -306,6 +322,7 @@ class _CreateUserState extends State<CreateUser> {
                 controller: _phoneController,
                 hintText: 'ስልክ አስገባ',
                 icon: Icons.phone,
+                requiredField: false,
               ),
               const SizedBox(height: 20),
               buildDropdownField(
@@ -318,59 +335,97 @@ class _CreateUserState extends State<CreateUser> {
                 icon: Icons.list,
               ),
               const SizedBox(height: 20),
-              _category != 'ብረት'
-                  ? Row(
-                children: [
-                  Expanded(
-                    child: buildTextField(
-                      label: 'Blood Type',
-                      controller: _bloodTypeController,
-                      hintText: 'A+, B-, ...',
-                      icon: Icons.bloodtype,
-                      requiredField: false,
+
+              // Address (always visible)
+              buildTextField(
+                label: 'አድራሻ',
+                controller: _addressController,
+                hintText: 'አድራሻ አስገባ',
+                icon: Icons.location_on,
+                requiredField: false,
+              ),
+              const SizedBox(height: 20),
+
+              // Conditional fields
+              if (_category != 'ብረት' &&
+                  _category != 'ቴኳንዶ እና ኪክ ቦክስ')
+                Row(
+                  children: [
+                    Expanded(
+                      child: buildTextField(
+                        label: 'የደም ዓይነት',
+                        controller: _bloodTypeController,
+                        hintText: 'A+, B-, ...',
+                        icon: Icons.bloodtype,
+                        requiredField: false,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: buildTextField(
-                      label: 'Height (cm)',
-                      controller: _heightController,
-                      hintText: 'Enter height',
-                      icon: Icons.height,
-                      keyboardType: TextInputType.number,
-                      requiredField: false,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: buildTextField(
+                        label: 'ቁመት (cm)',
+                        controller: _heightController,
+                        hintText: 'ቁመት አስገባ',
+                        icon: Icons.height,
+                        keyboardType: TextInputType.number,
+                        requiredField: false,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: buildTextField(
-                      label: 'Weight (kg)',
-                      controller: _weightController,
-                      hintText: 'Enter weight',
-                      icon: Icons.monitor_weight,
-                      keyboardType: TextInputType.number,
-                      requiredField: false,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: buildTextField(
+                        label: 'ክብደት (kg)',
+                        controller: _weightController,
+                        hintText: 'ክብደት አስገባ',
+                        icon: Icons.monitor_weight,
+                        keyboardType: TextInputType.number,
+                        requiredField: false,
+                      ),
                     ),
-                  ),
-                ],
-              )
-                  : const SizedBox(),
+                  ],
+                ),
+
+              if (_category == 'ቴኳንዶ እና ኪክ ቦክስ')
+                Row(
+                  children: [
+                    Expanded(
+                      child: buildTextField(
+                        label: 'የጤና ሁኔታ',
+                        controller: _healthStatusController,
+                        hintText: 'ጤና ሁኔታ አስገባ',
+                        icon: Icons.local_hospital,
+                        requiredField: false,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: buildTextField(
+                        label: 'የትምህርት ደረጃ',
+                        controller: _educationLevelController,
+                        hintText: 'የትምህርት ደረጃ አስገባ',
+                        icon: Icons.school,
+                        requiredField: false,
+                      ),
+                    ),
+                  ],
+                ),
+
               const SizedBox(height: 20),
               buildTextField(
                 label: 'የምዝገባ ቀን',
                 controller: _dayController,
                 hintText: 'ቀን አስገባ',
                 icon: Icons.calendar_month,
-                requiredField: false,
+                requiredField: true,
               ),
               const SizedBox(height: 20),
               buildTextField(
                 label: 'የክፍያ መጠን',
                 controller: _paymentController,
-                hintText: 'የክፍያ መጠን (optional)',
+                hintText: 'የክፍያ መጠን አስገባ',
                 icon: Icons.monetization_on,
                 keyboardType: TextInputType.number,
-                requiredField: false,
+                requiredField: true,
               ),
               const SizedBox(height: 40),
               SizedBox(
@@ -386,7 +441,8 @@ class _CreateUserState extends State<CreateUser> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text('Save', style: AppTextStyles.buttonText),
+                  child:
+                  const Text('Save', style: AppTextStyles.buttonText),
                 ),
               ),
               const SizedBox(height: 20),

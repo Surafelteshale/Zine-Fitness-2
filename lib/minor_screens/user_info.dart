@@ -25,7 +25,7 @@ class UserInfo extends StatelessWidget {
       ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
-            .collection('User') // ✅ your correct collection
+            .collection('User')
             .doc(userId)
             .snapshots(),
         builder: (context, snapshot) {
@@ -38,14 +38,26 @@ class UserInfo extends StatelessWidget {
           }
 
           final userData = snapshot.data!.data() as Map<String, dynamic>;
+
+          // 🔹 Extract all fields safely with defaults
           final name = userData['name'] ?? 'Unknown';
           final phone = userData['phone'] ?? '—';
           final gender = userData['gender'] ?? '—';
           final age = userData['age']?.toString() ?? '—';
           final category = userData['category'] ?? '—';
-          final status = userData['status'] == true ? 'ተከፍሏል' : 'አልተከፈለም';
-          final payments = List<Map<String, dynamic>>.from(userData['payments'] ?? []).reversed.toList();
+          final status =
+          userData['status'] == true ? 'ተከፍሏል' : 'አልተከፈለም';
 
+          final weight = userData['weight']?.toString() ?? '—';
+          final height = userData['height']?.toString() ?? '—';
+          final bloodType = userData['bloodType'] ?? '—';
+          final address = userData['address'] ?? '—';
+          final educationLevel = userData['educationLevel'] ?? '—';
+          final healthStatus = userData['healthStatus'] ?? '—';
+
+          final payments = List<Map<String, dynamic>>.from(
+            userData['payments'] ?? [],
+          ).reversed.toList();
 
           return Padding(
             padding: const EdgeInsets.all(20),
@@ -72,6 +84,8 @@ class UserInfo extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 20),
+
+                    /// 🔹 Basic details
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -80,13 +94,53 @@ class UserInfo extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
+
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("ክፍል: $category", style: AppTextStyles.resultText),
-                        Text("ክፍያ: $status", style: AppTextStyles.resultText.copyWith(
-                          color: status == 'ተከፍሏል' ? Colors.green : Colors.red,
-                        )),
+                        Text("ክፍል: $category",
+                            style: AppTextStyles.resultText),
+                        Text(
+                          "ክፍያ: $status",
+                          style: AppTextStyles.resultText.copyWith(
+                            color: status == 'ተከፍሏል'
+                                ? Colors.green
+                                : Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    /// 🔹 Extended details
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("ቁመት: $height", style: AppTextStyles.resultText),
+                        Text("ክብደት: $weight", style: AppTextStyles.resultText),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("የደም ዓይነት: $bloodType",
+                            style: AppTextStyles.resultText),
+                        Text("አድራሻ: $address",
+                            style: AppTextStyles.resultText),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("የጤና ሁኔታ: $healthStatus",
+                            style: AppTextStyles.resultText),
+                        Text("የትምህርት ደረጃ: $educationLevel",
+                            style: AppTextStyles.resultText),
                       ],
                     ),
                   ],
@@ -121,7 +175,8 @@ class UserInfo extends StatelessWidget {
                         ? const Center(
                       child: Text(
                         "ክፍያ ታሪክ የለም።",
-                        style: TextStyle(color: AppColors.textSecondary),
+                        style:
+                        TextStyle(color: AppColors.textSecondary),
                       ),
                     )
                         : ListView.separated(
@@ -132,7 +187,8 @@ class UserInfo extends StatelessWidget {
                         final payment = payments[index];
                         final displayDate =
                             payment['displayDay'] ?? '—';
-                        final amount = payment['amount']?.toString() ?? '—';
+                        final amount =
+                            payment['amount']?.toString() ?? '—';
 
                         return Padding(
                           padding: const EdgeInsets.symmetric(
