@@ -25,6 +25,8 @@ class _ReportPageState extends State<ReportPage> {
 
     try {
       final firestore = FirebaseFirestore.instance;
+
+      // Get latest document by documentId
       final querySnapshot = await firestore
           .collection('MonthlyStats')
           .orderBy(FieldPath.documentId, descending: true)
@@ -37,34 +39,44 @@ class _ReportPageState extends State<ReportPage> {
       }
 
       final latestDoc = querySnapshot.docs.first;
+      final latestId = latestDoc.id; // e.g., "2025-11"
       final data = latestDoc.data() as Map<String, dynamic>;
       final Timestamp createdAtTimestamp = data['createdAt'];
       final createdAt = createdAtTimestamp.toDate();
       final now = DateTime.now();
 
-      // Calculate difference in minutes for testing (replace with inDays for production)
-      final difference = now.difference(createdAt).inMinutes;
+      final difference = now.difference(createdAt).inDays; // for testing
 
-      if (difference >= 3) { // For testing: 3 minutes
+      if (difference >= 30) { // threshold for testing
+        // Extract year and month from latest document ID
+        final parts = latestId.split('-');
+        int year = int.parse(parts[0]);
+        int month = int.parse(parts[1]);
+
         // Compute next month/year
-        int year = createdAt.year;
-        int month = createdAt.month + 1;
+        month += 1;
         if (month > 12) {
           month = 1;
           year += 1;
         }
+
         final newDocId = '$year-${month.toString().padLeft(2, '0')}';
 
-        // Create empty structure
-        final emptyData = {
-          "createdAt": Timestamp.fromDate(now),
-          "income": 0,
-          "newUsers": 0,
-          "newUsersList": <String>[],
-          "payments": <Map<String, dynamic>>[],
-        };
+        // Check if this doc already exists to avoid overwriting
+        final newDocSnapshot =
+        await firestore.collection('MonthlyStats').doc(newDocId).get();
+        if (!newDocSnapshot.exists) {
+          // Create empty structure
+          final emptyData = {
+            "createdAt": Timestamp.fromDate(now),
+            "income": 0,
+            "newUsers": 0,
+            "newUsersList": <String>[],
+            "payments": <Map<String, dynamic>>[],
+          };
 
-        await firestore.collection('MonthlyStats').doc(newDocId).set(emptyData);
+          await firestore.collection('MonthlyStats').doc(newDocId).set(emptyData);
+        }
       }
     } catch (e) {
       debugPrint("Error checking/creating next month: $e");
@@ -72,6 +84,7 @@ class _ReportPageState extends State<ReportPage> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
