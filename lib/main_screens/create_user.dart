@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import '../providers/stat_provider.dart';
 import '../utilities/colors.dart'; // your AppColors & AppTextStyles
 
 class CreateUser extends StatefulWidget {
@@ -65,19 +67,17 @@ class _CreateUserState extends State<CreateUser> {
           ? null
           : double.tryParse(_paymentController.text.trim());
 
-      // Initialize payments array
       final List<Map<String, dynamic>> payments = [];
       if (paymentAmount != null) {
         payments.add({
           'amount': paymentAmount,
-          'date': Timestamp.now(), // real date
+          'date': Timestamp.now(),
           'displayDay': _dayController.text.trim().isEmpty
               ? null
-              : _dayController.text.trim(), // optional admin-visible day
+              : _dayController.text.trim(),
         });
       }
 
-      // Prepare document
       final Map<String, dynamic> data = {
         'id': id,
         'name': _nameController.text.trim().isEmpty
@@ -98,7 +98,55 @@ class _CreateUserState extends State<CreateUser> {
         'lastPaid': paymentAmount != null ? FieldValue.serverTimestamp() : null,
       };
 
+      // 1️⃣ Save the user
       await _firestore.collection('User').doc(id).set(data);
+
+      // 2️⃣ Update MonthlyStats
+      final monthDocId = DateTime.now().toIso8601String().substring(0, 7); // "YYYY-MM"
+      final monthRef = _firestore.collection('MonthlyStats').doc(monthDocId);
+
+      await _firestore.runTransaction((tx) async {
+        final snapshot = await tx.get(monthRef);
+
+        if (!snapshot.exists) {
+          // Create new month doc
+          tx.set(monthRef, {
+            'income': paymentAmount ?? 0,
+            'newUsers': 1,
+            'newUsersList': [id],
+            'payments': paymentAmount != null
+                ? [
+              {
+                'userId': id,
+                'amount': paymentAmount,
+                'date': Timestamp.now(),
+              }
+            ]
+                : [],
+            'createdAt': Timestamp.now(),
+          });
+        } else {
+          // Update existing month doc
+          tx.update(monthRef, {
+            'income': (snapshot['income'] ?? 0) + (paymentAmount ?? 0),
+            'newUsers': (snapshot['newUsers'] ?? 0) + 1,
+            'newUsersList': FieldValue.arrayUnion([id]),
+            if (paymentAmount != null)
+              'payments': FieldValue.arrayUnion([
+                {
+                  'userId': id,
+                  'amount': paymentAmount,
+                  'date': Timestamp.now(),
+                }
+              ]),
+          });
+        }
+      });
+
+      // 3️⃣ Optional: update provider for UI
+      final provider =
+      Provider.of<MonthlyStatsProvider>(context, listen: false);
+      await provider.refreshStats();
 
       _clearForm();
 
@@ -117,6 +165,8 @@ class _CreateUserState extends State<CreateUser> {
       if (mounted) setState(() => processing = false);
     }
   }
+
+
 
   void _clearForm() {
     _nameController.clear();

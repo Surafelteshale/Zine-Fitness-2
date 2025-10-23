@@ -58,7 +58,7 @@ class _CustomerPageState extends State<CustomerPage> {
         if (lastPaymentTimestamp == null) continue;
 
         final lastPaymentDate = (lastPaymentTimestamp as Timestamp).toDate();
-        final difference = now.difference(lastPaymentDate).inDays;
+        final difference = now.difference(lastPaymentDate).inMinutes;
 
         if (difference >= 30 && (data['status'] == true)) {
           await userDoc.reference.update({'status': false});
@@ -69,7 +69,7 @@ class _CustomerPageState extends State<CustomerPage> {
       await prefs.setString('lastPaymentCheckDate', todayKey);
 
     } catch (e) {
-      _error = "Error updating payment status: $e";
+      _error = "የክፍያ ሁኔታን ማወቅ አንችልም።: $e";
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

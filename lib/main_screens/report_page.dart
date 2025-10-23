@@ -1,20 +1,16 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:zine_fitness/minor_screens/payment_detail.dart';
 import 'package:zine_fitness/minor_screens/user_detail.dart';
 import '../utilities/colors.dart';
 
-class ReportPage extends StatefulWidget {
+class ReportPage extends StatelessWidget {
   const ReportPage({super.key});
 
   @override
-  State<ReportPage> createState() => _ReportPageState();
-}
-
-class _ReportPageState extends State<ReportPage> {
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background, // from colors.dart
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: AppColors.background,
@@ -28,47 +24,67 @@ class _ReportPageState extends State<ReportPage> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(vertical: 0),
-        child: Container(
-          color: Colors.white10,
-          child: Column(
-            children: [
-              _buildReportCard(
-                icon: Icons.monetization_on,
-                title: "የክፍያ መጠን",
-                subtitle: "የዚህ ወር የክፍያ መጠን:",
-                value: "4000 ብር",
-                buttonText: "ሁሉንም ይመልከቱ",
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const PaymentDetail(),
-                    ),
-                  );
-                },
-              ),
-              _buildReportCard(
-                icon: Icons.person_pin,
-                title: "የተጠቃሚ መጠን",
-                subtitle: "የዚህ ወር አዲስ የተጠቃሚ መጠን:",
-                value: "8 ተጠቃሚ",
-                // extraSubtitle: "ጠቅላላ ተጠቃሚ:",
-                // extraValue: "160 ተጠቃሚ",
-                buttonText: "ሁሉንም ይመልከቱ",
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const UserDetail(),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('MonthlyStats')
+            .orderBy(FieldPath.documentId, descending: true)
+            .limit(1)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text('No data available'));
+          }
+
+          final doc = snapshot.data!.docs.first;
+          final data = doc.data() as Map<String, dynamic>;
+
+          // Extract and compute values
+          final payments = List<Map<String, dynamic>>.from(data['payments'] ?? []);
+          final totalIncome =
+          payments.fold<num>(0, (sum, p) => sum + (p['amount'] ?? 0)).toInt();
+          final newUsers = data['newUsers'] ?? 0;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 0),
+            child: Column(
+              children: [
+                _buildReportCard(
+                  icon: Icons.monetization_on,
+                  title: "የክፍያ መጠን",
+                  subtitle: "የዚህ ወር የክፍያ መጠን:",
+                  value: "$totalIncome ብር",
+                  buttonText: "ሁሉንም ይመልከቱ",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PaymentDetail(),
+                      ),
+                    );
+                  },
+                ),
+                _buildReportCard(
+                  icon: Icons.person_pin,
+                  title: "የተጠቃሚ መጠን",
+                  subtitle: "የዚህ ወር አዲስ የተጠቃሚ መጠን:",
+                  value: "$newUsers ተጠቃሚ",
+                  buttonText: "ሁሉንም ይመልከቱ",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserDetail(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -84,7 +100,7 @@ class _ReportPageState extends State<ReportPage> {
     required VoidCallback onTap,
   }) {
     return Container(
-      height: 300, // 👈 fixed height to make the box smaller
+      height: 300,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
@@ -100,7 +116,6 @@ class _ReportPageState extends State<ReportPage> {
       ),
       child: Column(
         children: [
-          // Title Row
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -116,16 +131,10 @@ class _ReportPageState extends State<ReportPage> {
               ),
             ],
           ),
-
           const SizedBox(height: 12),
-
-          // Subtitle + Value
           Text(
             subtitle,
-            style: TextStyle(
-              fontSize: 16,
-              color: AppColors.iconGrey,
-            ),
+            style: TextStyle(fontSize: 16, color: AppColors.iconGrey),
           ),
           const SizedBox(height: 6),
           Text(
@@ -136,10 +145,7 @@ class _ReportPageState extends State<ReportPage> {
               color: AppColors.accent,
             ),
           ),
-
           const Spacer(),
-
-          // Button pinned at bottom
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Padding(

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/stat_provider.dart';
 import '../utilities/colors.dart';
 
 class Payment extends StatefulWidget {
@@ -54,27 +56,33 @@ class _PaymentState extends State<Payment> {
       final List<dynamic> payments = data['payments'] ?? [];
       final bool currentStatus = data['status'] ?? false;
 
+      final int paymentAmount = int.tryParse(_amountController.text) ?? 0;
+
       final newPayment = {
-        'amount': int.tryParse(_amountController.text) ?? 0,
+        'amount': paymentAmount,
         'displayDay': _dateController.text,
         'date': Timestamp.now(),
       };
 
       payments.add(newPayment);
 
-      // Create an update map
+      // Update user document
       final Map<String, dynamic> updateData = {
         'payments': payments,
         'lastPaid': Timestamp.now(),
       };
 
-      // Only update status if it's false
       if (!currentStatus) {
         updateData['status'] = true;
       }
 
-      // Update the Firestore document
       await docRef.update(updateData);
+
+      // --- NEW: Update MonthlyStatsProvider ---
+      final provider = Provider.of<MonthlyStatsProvider>(context, listen: false);
+      // Use the payment ID as a timestamp string for uniqueness
+      final paymentId = Timestamp.now().toString();
+      await provider.addPayment(paymentAmount, paymentId);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('ክፍያው ተሳክቷል')),
@@ -92,6 +100,7 @@ class _PaymentState extends State<Payment> {
       setState(() => _isLoading = false);
     }
   }
+
 
 
   @override

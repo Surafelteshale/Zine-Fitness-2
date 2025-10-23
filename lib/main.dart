@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:zine_fitness/providers/stat_provider.dart';
 import 'package:zine_fitness/utilities/colors.dart';
 import 'id_provider.dart';
 import 'main_screens/home_page.dart';
@@ -31,8 +32,9 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => IdProvider()),
-        ChangeNotifierProvider(create: (_) => UserProvider()),   // new
-        ChangeNotifierProvider(create: (_) => FilterProvider()), // new
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => FilterProvider()),
+        ChangeNotifierProvider(create: (_) => MonthlyStatsProvider(),),
       ],
       child: const MyApp(),
     ),

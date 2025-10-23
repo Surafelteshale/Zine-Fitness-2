@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utilities/colors.dart';
 
 class UserDetail extends StatefulWidget {
@@ -9,17 +10,8 @@ class UserDetail extends StatefulWidget {
 }
 
 class _UserDetailState extends State<UserDetail> {
-  // Dummy user history
-  final List<Map<String, String>> history = [
-    {"month": "03/2018", "count": "5 ሰው"},
-    {"month": "02/2018", "count": "6 ሰው"},
-    {"month": "01/2018", "count": "4 ሰው"},
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -40,89 +32,135 @@ class _UserDetailState extends State<UserDetail> {
           ),
         ),
       ),
-      body: Column(
-        children: [
-          // Top summary section (20%)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius:
-              const BorderRadius.vertical(bottom: Radius.circular(24)),
-            ),
-            child: Column(
-              children: [
-                _buildSummaryRow("የዚህ ወር አዲስ ተጠቃሚዎች መጠን", "5 ሰው"),
-                const SizedBox(height: 12),
-                _buildSummaryRow(
-                    "እስከ አሁን ጠቅላላ ተጠቃሚዎች መጠን", "202 ሰው"),
-              ],
-            ),
-          ),
 
-          const SizedBox(height: 20),
+      // 🔥 Use StreamBuilder to read directly from Firestore
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('MonthlyStats')
+            .orderBy(FieldPath.documentId, descending: false)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          // History title
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'የተመዝጋቢዎች ታሪክ',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(
+              child: Text("ምንም ውሂብ አልተገኘም።"),
+            );
+          }
+
+          final docs = snapshot.data!.docs;
+
+          // 🧮 Calculate total users
+          int totalUsers = 0;
+          for (var doc in docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final newUsers = data['newUsers'];
+            if (newUsers is int) totalUsers += newUsers;
+            // if (newUsers is num) totalUsers += newUsers.toInt();
+          }
+
+          // 📅 Current month (latest document)
+          final latestDoc = docs.last;
+          final latestData = latestDoc.data() as Map<String, dynamic>;
+          final currentMonthNewUsers = latestData['newUsers'] ?? 0;
+          final currentMonth = latestDoc.id;
+
+          return Column(
+            children: [
+              // ✅ Top summary section
+              Container(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(24)),
+                ),
+                child: Column(
+                  children: [
+                    _buildSummaryRow(
+                      "የዚህ ወር አዲስ ተጠቃሚዎች መጠን",
+                      "$currentMonthNewUsers ሰው",
+                    ),
+                    const SizedBox(height: 12),
+                    _buildSummaryRow(
+                      "እስከ አሁን ጠቅላላ ተጠቃሚዎች መጠን",
+                      "$totalUsers ሰው",
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ),
-          const SizedBox(height: 12),
 
-          // Scrollable history list (80%)
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: ListView.separated(
-                itemCount: history.length,
-                separatorBuilder: (context, index) =>
-                    Divider(color: Colors.grey[400]),
-                itemBuilder: (context, index) {
-                  final item = history[index];
-                  return Padding(
-                    padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${item["month"]}:',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        Text(
-                          item["count"]!,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.accent,
-                          ),
-                        ),
-                      ],
+              const SizedBox(height: 20),
+
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'የተመዝጋቢዎች ታሪክ',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
+
+              const SizedBox(height: 12),
+
+              // ✅ History list
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: ListView.separated(
+                    itemCount: docs.length,
+                    separatorBuilder: (context, index) =>
+                        Divider(color: Colors.grey[400]),
+                    itemBuilder: (context, index) {
+                      final item = docs[index];
+                      final data = item.data() as Map<String, dynamic>;
+                      final month = item.id;
+                      final count = data['newUsers'] ?? 0;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '$month:',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            Text(
+                              '$count ሰው',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.accent,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
