@@ -75,10 +75,11 @@ class _CreateUserState extends State<CreateUser> {
           'displayDay': _dayController.text.trim().isEmpty
               ? null
               : _dayController.text.trim(),
+          'userId': id,
         });
       }
 
-      final Map<String, dynamic> data = {
+      final Map<String, dynamic> userData = {
         'id': id,
         'name': _nameController.text.trim().isEmpty
             ? null
@@ -99,54 +100,43 @@ class _CreateUserState extends State<CreateUser> {
       };
 
       // 1️⃣ Save the user
-      await _firestore.collection('User').doc(id).set(data);
+      await _firestore.collection('User').doc(id).set(userData);
 
-      // 2️⃣ Update MonthlyStats
-      final monthDocId = DateTime.now().toIso8601String().substring(0, 7); // "YYYY-MM"
-      final monthRef = _firestore.collection('MonthlyStats').doc(monthDocId);
+      // 2️⃣ Update MonthlyStats in the latest document
+      final monthlyStatsQuery = await _firestore
+          .collection('MonthlyStats')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
 
-      await _firestore.runTransaction((tx) async {
-        final snapshot = await tx.get(monthRef);
+      if (monthlyStatsQuery.docs.isEmpty) {
+        // If no document exists, create a new one
+        final newMonthDocId =
+            "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}";
+        await _firestore.collection('MonthlyStats').doc(newMonthDocId).set({
+          'createdAt': Timestamp.now(),
+          'income': paymentAmount ?? 0,
+          'newUsers': 1,
+          'newUsersList': [id],
+          'payments': payments,
+        });
+      } else {
+        // Update the latest document
+        final latestDoc = monthlyStatsQuery.docs.first;
+        final latestRef = latestDoc.reference;
 
-        if (!snapshot.exists) {
-          // Create new month doc
-          tx.set(monthRef, {
-            'income': paymentAmount ?? 0,
-            'newUsers': 1,
-            'newUsersList': [id],
-            'payments': paymentAmount != null
-                ? [
-              {
-                'userId': id,
-                'amount': paymentAmount,
-                'date': Timestamp.now(),
-              }
-            ]
-                : [],
-            'createdAt': Timestamp.now(),
-          });
-        } else {
-          // Update existing month doc
-          tx.update(monthRef, {
+        await _firestore.runTransaction((tx) async {
+          final snapshot = await tx.get(latestRef);
+
+          tx.update(latestRef, {
             'income': (snapshot['income'] ?? 0) + (paymentAmount ?? 0),
             'newUsers': (snapshot['newUsers'] ?? 0) + 1,
             'newUsersList': FieldValue.arrayUnion([id]),
             if (paymentAmount != null)
-              'payments': FieldValue.arrayUnion([
-                {
-                  'userId': id,
-                  'amount': paymentAmount,
-                  'date': Timestamp.now(),
-                }
-              ]),
+              'payments': FieldValue.arrayUnion(payments),
           });
-        }
-      });
-
-      // 3️⃣ Optional: update provider for UI
-      final provider =
-      Provider.of<MonthlyStatsProvider>(context, listen: false);
-      await provider.refreshStats();
+        });
+      }
 
       _clearForm();
 
@@ -165,6 +155,7 @@ class _CreateUserState extends State<CreateUser> {
       if (mounted) setState(() => processing = false);
     }
   }
+
 
 
 
@@ -320,7 +311,7 @@ class _CreateUserState extends State<CreateUser> {
               buildDropdownField(
                 label: 'ምድብ',
                 value: _category,
-                items: ['ብረት', 'ኤሮቢክስ', 'ብረት እና ኤሮቢክስ'],
+                items: ['ብረት', 'ኤሮቢክስ', 'Personanl', 'ቴኳንዶ እና ኪክ ቦክስ'],
                 onChanged: (value) {
                   setState(() => _category = value ?? _category);
                 },

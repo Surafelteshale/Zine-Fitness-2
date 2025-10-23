@@ -17,7 +17,7 @@ class _UpdateUserState extends State<UpdateUser> {
   bool _isLoading = false;
   bool _isDataLoading = true;
 
-  final List<String> _categories = ['ብረት', 'ኤሮቢክስ', 'ብረት እና ኤሮቢክስ'];
+  final List<String> _categories = ['ብረት', 'ኤሮቢክስ', 'Personanl', 'ቴኳንዶ እና ኪክ ቦክስ'];
 
   @override
   void initState() {

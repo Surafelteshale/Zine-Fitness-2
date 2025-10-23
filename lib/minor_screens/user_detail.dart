@@ -23,7 +23,7 @@ class _UserDetailState extends State<UserDetail> {
           color: AppColors.textPrimary,
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
+        title: const Text(
           'የተጠቃሚ ዝርዝር',
           style: TextStyle(
             color: AppColors.textPrimary,

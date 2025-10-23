@@ -1,7 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/stat_provider.dart';
 import '../utilities/colors.dart';
 
 class Payment extends StatefulWidget {
@@ -47,28 +45,31 @@ class _PaymentState extends State<Payment> {
     setState(() => _isLoading = true);
 
     try {
-      final docRef = FirebaseFirestore.instance.collection('User').doc(widget.userId);
-      final docSnap = await docRef.get();
+      final firestore = FirebaseFirestore.instance;
+      final userRef = firestore.collection('User').doc(widget.userId);
+      final userSnap = await userRef.get();
 
-      if (!docSnap.exists) throw Exception("User not found");
+      if (!userSnap.exists) throw Exception("User not found");
 
-      final data = docSnap.data()!;
-      final List<dynamic> payments = data['payments'] ?? [];
-      final bool currentStatus = data['status'] ?? false;
+      final userData = userSnap.data()!;
+      final List<dynamic> userPayments = userData['payments'] ?? [];
+      final bool currentStatus = userData['status'] ?? false;
 
       final int paymentAmount = int.tryParse(_amountController.text) ?? 0;
 
+      // --- Create new payment map ---
       final newPayment = {
         'amount': paymentAmount,
-        'displayDay': _dateController.text,
+        'displayDay': _dateController.text.trim(),
         'date': Timestamp.now(),
+        'userId': widget.userId,
       };
 
-      payments.add(newPayment);
+      userPayments.add(newPayment);
 
-      // Update user document
+      // --- Update user document ---
       final Map<String, dynamic> updateData = {
-        'payments': payments,
+        'payments': userPayments,
         'lastPaid': Timestamp.now(),
       };
 
@@ -76,22 +77,42 @@ class _PaymentState extends State<Payment> {
         updateData['status'] = true;
       }
 
-      await docRef.update(updateData);
+      await userRef.update(updateData);
 
-      // --- NEW: Update MonthlyStatsProvider ---
-      final provider = Provider.of<MonthlyStatsProvider>(context, listen: false);
-      // Use the payment ID as a timestamp string for uniqueness
-      final paymentId = Timestamp.now().toString();
-      await provider.addPayment(paymentAmount, paymentId);
+      // --- Update MonthlyStats latest document ---
+      final monthlyStatsRef = firestore.collection('MonthlyStats');
+      final latestQuery = await monthlyStatsRef
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
 
+      if (latestQuery.docs.isNotEmpty) {
+        final latestDoc = latestQuery.docs.first;
+        final latestRef = latestDoc.reference;
+
+        await firestore.runTransaction((tx) async {
+          final latestSnapshot = await tx.get(latestRef);
+          if (!latestSnapshot.exists) return;
+
+          final currentData = latestSnapshot.data()!;
+          final currentIncome = currentData['income'] ?? 0;
+
+          tx.update(latestRef, {
+            'income': currentIncome + paymentAmount,
+            'payments': FieldValue.arrayUnion([newPayment]),
+          });
+        });
+      }
+
+      // --- Show success message ---
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('ክፍያው ተሳክቷል')),
       );
 
+      // --- Clear and refresh ---
       _amountController.clear();
       _dateController.clear();
-      await _fetchUserData(); // refresh data
-
+      await _fetchUserData();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('ስህተት ተከስቷል: $e')),
@@ -100,8 +121,6 @@ class _PaymentState extends State<Payment> {
       setState(() => _isLoading = false);
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {

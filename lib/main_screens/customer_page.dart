@@ -58,7 +58,7 @@ class _CustomerPageState extends State<CustomerPage> {
         if (lastPaymentTimestamp == null) continue;
 
         final lastPaymentDate = (lastPaymentTimestamp as Timestamp).toDate();
-        final difference = now.difference(lastPaymentDate).inMinutes;
+        final difference = now.difference(lastPaymentDate).inDays;
 
         if (difference >= 30 && (data['status'] == true)) {
           await userDoc.reference.update({'status': false});
@@ -205,6 +205,7 @@ class _CustomerPageState extends State<CustomerPage> {
                   Expanded(
                     child: UserListWrapper(selectedTab: selectedCategory),
                   ),
+                  SizedBox(height: 150,)
                 ],
               ),
             ),
