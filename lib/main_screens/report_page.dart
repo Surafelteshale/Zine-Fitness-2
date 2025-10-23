@@ -4,11 +4,83 @@ import 'package:zine_fitness/minor_screens/payment_detail.dart';
 import 'package:zine_fitness/minor_screens/user_detail.dart';
 import '../utilities/colors.dart';
 
-class ReportPage extends StatelessWidget {
+class ReportPage extends StatefulWidget {
   const ReportPage({super.key});
 
   @override
+  State<ReportPage> createState() => _ReportPageState();
+}
+
+class _ReportPageState extends State<ReportPage> {
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAndCreateNextMonth();
+  }
+
+  Future<void> _checkAndCreateNextMonth() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final querySnapshot = await firestore
+          .collection('MonthlyStats')
+          .orderBy(FieldPath.documentId, descending: true)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final latestDoc = querySnapshot.docs.first;
+      final data = latestDoc.data() as Map<String, dynamic>;
+      final Timestamp createdAtTimestamp = data['createdAt'];
+      final createdAt = createdAtTimestamp.toDate();
+      final now = DateTime.now();
+
+      // Calculate difference in minutes for testing (replace with inDays for production)
+      final difference = now.difference(createdAt).inMinutes;
+
+      if (difference >= 3) { // For testing: 3 minutes
+        // Compute next month/year
+        int year = createdAt.year;
+        int month = createdAt.month + 1;
+        if (month > 12) {
+          month = 1;
+          year += 1;
+        }
+        final newDocId = '$year-${month.toString().padLeft(2, '0')}';
+
+        // Create empty structure
+        final emptyData = {
+          "createdAt": Timestamp.fromDate(now),
+          "income": 0,
+          "newUsers": 0,
+          "newUsersList": <String>[],
+          "payments": <Map<String, dynamic>>[],
+        };
+
+        await firestore.collection('MonthlyStats').doc(newDocId).set(emptyData);
+      }
+    } catch (e) {
+      debugPrint("Error checking/creating next month: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -41,7 +113,6 @@ class ReportPage extends StatelessWidget {
           final doc = snapshot.data!.docs.first;
           final data = doc.data() as Map<String, dynamic>;
 
-          // Extract and compute values
           final payments = List<Map<String, dynamic>>.from(data['payments'] ?? []);
           final totalIncome =
           payments.fold<num>(0, (sum, p) => sum + (p['amount'] ?? 0)).toInt();
@@ -147,27 +218,24 @@ class ReportPage extends StatelessWidget {
           ),
           const Spacer(),
           Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 28.0),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  onPressed: onTap,
-                  child: Text(
-                    buttonText,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppColors.background,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: onTap,
+                child: Text(
+                  buttonText,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: AppColors.background,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
